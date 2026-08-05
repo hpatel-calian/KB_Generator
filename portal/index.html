@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KB Portal (Agent Orchestrator)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>KB Portal (Uses Existing Agent Setup)</h1>
+    <p>This portal prepares uploads, flags, and orchestrator prompts for your existing pipeline in .github/agents.</p>
+  </header>
+
+  <main class="layout">
+    <section class="card status-card">
+      <h2>Current Orchestrator Setup</h2>
+      <ul>
+        <li>Primary: KB Article Generator</li>
+        <li>Media agents: Screenshot Extractor + GIF Creator</li>
+        <li>Input folder: recordings/</li>
+        <li>Output folder: kb-articles/</li>
+      </ul>
+      <p class="hint">This UI does not replace those agents. It builds structured prompts to run the same workflow consistently.</p>
+    </section>
+
+    <section class="card">
+      <h2>1) Upload Plan</h2>
+      <p class="hint">Select one or many recordings and transcripts. Files are paired by base name.</p>
+
+      <div class="actions" style="margin-bottom:0.75rem">
+        <button id="selectFolderBtn" type="button">📁 Select recordings/ Folder</button>
+        <span id="folderStatus" class="hint" style="margin-left:0.5rem">No folder selected — files will not be saved automatically.</span>
+      </div>
+
+      <div class="row">
+        <label>
+          Recordings
+          <input id="recordingInput" type="file" multiple accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm" />
+        </label>
+        <label>
+          Transcripts
+          <input id="transcriptInput" type="file" multiple accept=".vtt,.srt,text/vtt" />
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="pairBtn" type="button">Pair Files</button>
+        <button id="clearBtn" type="button" class="ghost">Clear</button>
+      </div>
+
+      <div class="two-col">
+        <div>
+          <h3>Paired Inputs</h3>
+          <ul id="pairsList" class="list"></ul>
+        </div>
+        <div>
+          <h3>Unpaired Inputs</h3>
+          <ul id="unpairedList" class="list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2) Conversion Flags</h2>
+      <div class="flags">
+        <label><input id="fHowTo" type="checkbox" checked /> How-To Article</label>
+        <label><input id="fKT" type="checkbox" /> Knowledge Transfer Article</label>
+        <label><input id="fAutoSplit" type="checkbox" checked /> Auto-split long recordings into multiple topics</label>
+        <label><input id="fManualReview" type="checkbox" checked /> Require topic approval before article creation</label>
+        <label><input id="fInternalOnly" type="checkbox" /> Internal-only output</label>
+      </div>
+      <p id="validationMsg" class="warning"></p>
+    </section>
+
+    <section class="card">
+      <h2>3) Orchestrator Prompt</h2>
+      <p class="hint">Copy and paste this in Copilot Agent mode (KB Article Generator) to run the existing setup.</p>
+      <label>
+        Prompt Variant
+        <select id="promptVariant">
+          <option value="auto" selected>Auto (based on selected flags)</option>
+          <option value="howto">How-To only</option>
+          <option value="kt">Knowledge Transfer only</option>
+          <option value="both">How-To and Knowledge Transfer</option>
+        </select>
+      </label>
+      <textarea id="promptOutput" rows="14" readonly></textarea>
+      <div class="actions">
+        <button id="buildPromptBtn" type="button">Build Prompt</button>
+        <button id="copyPromptBtn" type="button" class="ghost">Copy Prompt</button>
+        <button id="downloadManifestBtn" type="button" class="ghost">Download Job Manifest</button>
+      </div>
+      <p class="hint">Manifest includes pairing, duration bands, and flags for audit trail. Save it into recordings/ if desired.</p>
+    </section>
+
+    <section class="card">
+      <h2>4) Run Instructions</h2>
+      <ol>
+        <li>Click <strong>Select recordings/ Folder</strong> and grant access to the <code>recordings/</code> folder. Files will be saved automatically when you upload them.</li>
+        <li>Open Copilot Chat in Agent mode.</li>
+        <li>Select <strong>KB Article Generator</strong>.</li>
+        <li>Paste the generated prompt and run.</li>
+      </ol>
+      <p id="saveStatus" class="hint"></p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

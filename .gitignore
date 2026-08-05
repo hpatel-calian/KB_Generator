@@ -1,0 +1,57 @@
+# Privacy-sensitive project outputs
+# Raw recordings and transcripts can include confidential voice/screen data
+recordings/**
+
+# Generated KB artifacts can include sensitive screenshots/text
+kb-articles/**
+
+# Media and transcript formats (defense-in-depth)
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.avi
+*.wav
+*.mp3
+*.vtt
+*.srt
+*.gif
+*.png
+*.jpg
+*.jpeg
+
+# Secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.cer
+*.crt
+*.token
+*.secret
+*.credentials
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Cloud/local auth folders
+.azure/
+.aws/
+.gcp/
+
+# Logs and local temp files
+*.log
+*.tmp
+*.temp
+*.bak
+.DS_Store
+Thumbs.db
+
+# Local editor settings
+.vscode/*
+!.vscode/extensions.json
