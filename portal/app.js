@@ -8,6 +8,13 @@ const state = {
 };
 
 const dom = {
+  workflowMode: document.getElementById("workflowMode"),
+  workflowHint: document.getElementById("workflowHint"),
+  primaryAgentLabel: document.getElementById("primaryAgentLabel"),
+  outputFolderLabel: document.getElementById("outputFolderLabel"),
+  runAgentLabel: document.getElementById("runAgentLabel"),
+  kbOnlyFlags: document.getElementById("kbOnlyFlags"),
+  promptVariantLabel: document.getElementById("promptVariantLabel"),
   recordingInput: document.getElementById("recordingInput"),
   transcriptInput: document.getElementById("transcriptInput"),
   pairBtn: document.getElementById("pairBtn"),
@@ -34,6 +41,12 @@ bind();
 renderAll();
 
 function bind() {
+  dom.workflowMode.addEventListener("change", () => {
+    applyWorkflowUI();
+    dom.validationMsg.textContent = "";
+    dom.promptOutput.value = "";
+  });
+
   dom.recordingInput.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files || []);
     state.recordings = await enrichVideos(files);
@@ -54,6 +67,39 @@ function bind() {
   dom.buildPromptBtn.addEventListener("click", buildPrompt);
   dom.copyPromptBtn.addEventListener("click", copyPrompt);
   dom.downloadManifestBtn.addEventListener("click", downloadManifest);
+}
+
+function workflowMode() {
+  return dom.workflowMode.value === "config" ? "config" : "kb";
+}
+
+function workflowMeta() {
+  if (workflowMode() === "config") {
+    return {
+      agent: "Configuration Setup Generator",
+      outputFolder: "configuration-articles/",
+      hint: "Uses Configuration Setup Generator and writes to configuration-articles/."
+    };
+  }
+
+  return {
+    agent: "KB Article Generator",
+    outputFolder: "kb-articles/",
+    hint: "Uses KB Article Generator and writes to kb-articles/."
+  };
+}
+
+function applyWorkflowUI() {
+  const mode = workflowMode();
+  const meta = workflowMeta();
+  dom.workflowHint.textContent = meta.hint;
+  dom.primaryAgentLabel.textContent = meta.agent;
+  dom.outputFolderLabel.textContent = meta.outputFolder;
+  dom.runAgentLabel.textContent = meta.agent;
+
+  const kbVisible = mode === "kb";
+  dom.kbOnlyFlags.style.display = kbVisible ? "grid" : "none";
+  dom.promptVariantLabel.style.display = kbVisible ? "grid" : "none";
 }
 
 async function selectRecordingsFolder() {
@@ -234,6 +280,7 @@ function pairingHealth() {
 
 function validateForPrompt(outputs) {
   const health = pairingHealth();
+  const mode = workflowMode();
   if (!health.recordingCount || !health.transcriptCount) {
     return "Upload at least one recording and one transcript.";
   }
@@ -243,7 +290,7 @@ function validateForPrompt(outputs) {
   if (health.unpairedRecordingCount || health.unpairedTranscriptCount) {
     return "All files must be paired before building prompt. Resolve unpaired files first.";
   }
-  if (!outputs.howTo && !outputs.knowledgeTransfer) {
+  if (mode === "kb" && !outputs.howTo && !outputs.knowledgeTransfer) {
     return "Select at least one article output type (How-To or Knowledge Transfer).";
   }
   return "";
@@ -253,6 +300,8 @@ function buildPrompt() {
   const flags = selectedFlags();
   const variant = dom.promptVariant.value;
   const outputs = resolvedOutputs(flags, variant);
+  const mode = workflowMode();
+  const meta = workflowMeta();
   const validationError = validateForPrompt(outputs);
   if (validationError) {
     dom.validationMsg.textContent = validationError;
@@ -263,8 +312,13 @@ function buildPrompt() {
   dom.validationMsg.textContent = "";
 
   const lines = [];
-  lines.push("Use KB Article Generator with the existing setup in this repo.");
-  lines.push("Before creating articles, detect all workflows/topics and show the topic list for approval.");
+  if (mode === "config") {
+    lines.push("Use Configuration Setup Generator with the existing setup in this repo.");
+    lines.push("Before creating articles, detect all configuration domains and show the domain list for approval.");
+  } else {
+    lines.push("Use KB Article Generator with the existing setup in this repo.");
+    lines.push("Before creating articles, detect all workflows/topics and show the topic list for approval.");
+  }
   lines.push("");
   lines.push("Input pairs in recordings/:");
 
@@ -276,19 +330,31 @@ function buildPrompt() {
 
   lines.push("");
   lines.push("Flags:");
-  lines.push(`- Prompt variant: ${variant}`);
-  lines.push(`- How-To output: ${yesNo(outputs.howTo)}`);
-  lines.push(`- Knowledge Transfer output: ${yesNo(outputs.knowledgeTransfer)}`);
+  lines.push(`- Workflow mode: ${mode === "config" ? "Configuration Setup Documentation" : "Procedural KB Article"}`);
+  lines.push(`- Primary agent: ${meta.agent}`);
+  if (mode === "kb") {
+    lines.push(`- Prompt variant: ${variant}`);
+    lines.push(`- How-To output: ${yesNo(outputs.howTo)}`);
+    lines.push(`- Knowledge Transfer output: ${yesNo(outputs.knowledgeTransfer)}`);
+  }
   lines.push(`- Auto-split long video into multiple topics/articles: ${yesNo(flags.autoSplit)}`);
   lines.push(`- Manual review required before article creation: ${yesNo(flags.manualReview)}`);
   lines.push(`- Internal-only article: ${yesNo(flags.internalOnly)}`);
 
   lines.push("");
   lines.push("Constraints:");
-  lines.push("- If one recording contains multiple topics, create separate articles per topic.");
+  lines.push("- If one recording contains multiple topics/domains, create separate articles per topic/domain.");
   lines.push("- If multiple recordings are provided, process each pair separately.");
   lines.push("- Use Screenshot Extractor and GIF Creator through existing orchestration.");
-  if (variant === "howto") {
+
+  if (mode === "config") {
+    lines.push("- Output must be Azure DevOps Wiki-compatible configuration setup documentation.");
+    lines.push("- Keep KB-style section layout with configuration-focused content.");
+    lines.push("- Do not force Step X procedural format unless explicitly requested.");
+    lines.push("- Save all output under configuration-articles/<article-slug>/.");
+    lines.push("- Always include two configuration UI screenshots per generated article.");
+    lines.push("- Use GIF only when motion is required and static screenshots are insufficient.");
+  } else if (variant === "howto") {
     lines.push("- Generate only How-To style articles.");
   } else if (variant === "kt") {
     lines.push("- Generate only Knowledge Transfer style articles.");
@@ -303,14 +369,18 @@ function makeManifestPayload() {
   const flags = selectedFlags();
   const variant = dom.promptVariant.value;
   const outputs = resolvedOutputs(flags, variant);
+  const mode = workflowMode();
+  const meta = workflowMeta();
   return {
     manifestVersion: "1.0",
     generatedAt: new Date().toISOString(),
     sourceWorkflow: "KB Portal (Agent Orchestrator)",
+    workflowMode: mode,
+    primaryAgent: meta.agent,
     inputFolder: "recordings/",
-    outputFolder: "kb-articles/",
-    promptVariant: variant,
-    outputs,
+    outputFolder: meta.outputFolder,
+    promptVariant: mode === "kb" ? variant : "config",
+    outputs: mode === "kb" ? outputs : null,
     flags,
     pairing: pairingHealth(),
     pairs: state.pairs.map((p) => ({
@@ -328,6 +398,7 @@ function downloadManifest() {
   const flags = selectedFlags();
   const variant = dom.promptVariant.value;
   const outputs = resolvedOutputs(flags, variant);
+  const mode = workflowMode();
   const validationError = validateForPrompt(outputs);
   if (validationError) {
     dom.validationMsg.textContent = validationError;
@@ -338,7 +409,7 @@ function downloadManifest() {
   const payload = makeManifestPayload();
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const fileName = `kb-job-manifest-${stamp}.json`;
+  const fileName = `${mode === "config" ? "configuration-setup" : "kb"}-job-manifest-${stamp}.json`;
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -395,6 +466,7 @@ function renderUnpaired() {
 }
 
 function renderAll() {
+  applyWorkflowUI();
   renderPairs();
   renderUnpaired();
 }

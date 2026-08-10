@@ -5,6 +5,9 @@ recordings/**
 # Generated KB artifacts can include sensitive screenshots/text
 kb-articles/**
 
+# Generated configuration artifacts can include sensitive screenshots/text
+configuration-articles/**
+
 # Media and transcript formats (defense-in-depth)
 *.mp4
 *.mov

@@ -16,12 +16,25 @@
     <section class="card status-card">
       <h2>Current Orchestrator Setup</h2>
       <ul>
-        <li>Primary: KB Article Generator</li>
+        <li>Primary: <span id="primaryAgentLabel">KB Article Generator</span></li>
         <li>Media agents: Screenshot Extractor + GIF Creator</li>
         <li>Input folder: recordings/</li>
-        <li>Output folder: kb-articles/</li>
+        <li>Output folder: <span id="outputFolderLabel">kb-articles/</span></li>
       </ul>
       <p class="hint">This UI does not replace those agents. It builds structured prompts to run the same workflow consistently.</p>
+    </section>
+
+    <section class="card">
+      <h2>0) Workflow Mode</h2>
+      <p class="hint">Choose the workflow you want to run. Upload and pairing stay the same for both modes.</p>
+      <label>
+        Workflow
+        <select id="workflowMode">
+          <option value="kb" selected>Procedural KB Article</option>
+          <option value="config">Configuration Setup Documentation</option>
+        </select>
+      </label>
+      <p id="workflowHint" class="hint">Uses KB Article Generator and writes to kb-articles/.</p>
     </section>
 
     <section class="card">
@@ -63,9 +76,11 @@
 
     <section class="card">
       <h2>2) Conversion Flags</h2>
-      <div class="flags">
+      <div id="kbOnlyFlags" class="flags">
         <label><input id="fHowTo" type="checkbox" checked /> How-To Article</label>
         <label><input id="fKT" type="checkbox" /> Knowledge Transfer Article</label>
+      </div>
+      <div class="flags">
         <label><input id="fAutoSplit" type="checkbox" checked /> Auto-split long recordings into multiple topics</label>
         <label><input id="fManualReview" type="checkbox" checked /> Require topic approval before article creation</label>
         <label><input id="fInternalOnly" type="checkbox" /> Internal-only output</label>
@@ -75,8 +90,8 @@
 
     <section class="card">
       <h2>3) Orchestrator Prompt</h2>
-      <p class="hint">Copy and paste this in Copilot Agent mode (KB Article Generator) to run the existing setup.</p>
-      <label>
+      <p class="hint">Copy and paste this in Copilot Agent mode using the selected workflow agent.</p>
+      <label id="promptVariantLabel">
         Prompt Variant
         <select id="promptVariant">
           <option value="auto" selected>Auto (based on selected flags)</option>
@@ -99,7 +114,7 @@
       <ol>
         <li>Click <strong>Select recordings/ Folder</strong> and grant access to the <code>recordings/</code> folder. Files will be saved automatically when you upload them.</li>
         <li>Open Copilot Chat in Agent mode.</li>
-        <li>Select <strong>KB Article Generator</strong>.</li>
+        <li>Select <strong id="runAgentLabel">KB Article Generator</strong>.</li>
         <li>Paste the generated prompt and run.</li>
       </ol>
       <p id="saveStatus" class="hint"></p>
