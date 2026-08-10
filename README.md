@@ -1,10 +1,15 @@
-# Meeting Recordings -> KB Article Pipeline
+# Meeting Recordings -> Documentation Pipeline
 
-Automatically convert any meeting or screen recording into one or more fully structured, Azure DevOps Wiki-ready Knowledge Base articles with screenshots and animated GIFs using GitHub Copilot agents.
+Automatically convert any meeting or screen recording into one or more fully structured, Azure DevOps Wiki-ready documents using GitHub Copilot agents.
+
+Two workflows are supported:
+- Procedural KB Article workflow (output in `kb-articles/`)
+- Configuration Setup Documentation workflow (output in `configuration-articles/`)
 
 This repository now includes a lightweight local portal in `portal/` that orchestrates the existing agent workflow by helping you:
 - pair recording/transcript files,
 - set conversion flags,
+- choose workflow mode,
 - choose output prompt variants,
 - generate a ready-to-run orchestration prompt,
 - export a job manifest JSON for audit tracking.
@@ -21,13 +26,14 @@ recordings/          <- you drop video + .vtt here
          v  portal/ (orchestrator UI)
          |   |- pairs files
          |   |- applies conversion flags
-         |   |- builds KB Article Generator prompt
+         |   |- chooses workflow mode
+         |   |- builds workflow-specific orchestrator prompt
          |   \- exports job manifest JSON
          |
-         v  KB Article Generator agent
-         |   |- parses transcript -> detects topics, steps, timestamps
-         |   |- Screenshot Extractor -> saves PNGs for navigation steps
-         |   \- GIF Creator -> saves GIFs for lengthy operations
+         v  Selected agent
+         |   |- KB Article Generator (procedural workflow)
+         |   \- Configuration Setup Generator (config workflow)
+         |      both use Screenshot Extractor and GIF Creator as needed
          v
 kb-articles/
     |- my-recording-topic-1/
@@ -38,6 +44,12 @@ kb-articles/
         |- KB-my-recording-topic-2.md
         |- screenshots/
         \- gifs/
+
+configuration-articles/
+    \- my-recording-config-domain/
+        |- KB-my-recording-config-domain.md
+        |- screenshots/
+        \- gifs/ (optional)
 ```
 
 ---
@@ -59,6 +71,11 @@ Meetings recordings/
 │       ├── KB-<article-slug-2>.md
 │       ├── screenshots/
 │       └── gifs/
+├── configuration-articles/            ← generated configuration docs go here
+│   └── <article-slug>/
+│       ├── KB-<article-slug>.md
+│       ├── screenshots/
+│       └── gifs/                      ← optional, only when motion is needed
 ├── portal/                            ← local orchestration UI
 │   ├── index.html
 │   ├── styles.css
@@ -67,6 +84,7 @@ Meetings recordings/
     ├── copilot-instructions.md        ← documentation standards
     └── agents/
         ├── kb-article-generator.agent.md    ← orchestrator
+        ├── configuration-setup-generator.agent.md  ← config orchestrator
         ├── screenshot-extractor.agent.md    ← PNG extractor
         └── gif-creator.agent.md             ← GIF creator
 ```
@@ -117,7 +135,13 @@ Available flags:
 - Require topic approval before article creation
 - Internal-only output
 
-### Step 5 — Choose Prompt Variant
+### Step 5 — Choose Workflow Mode
+
+Select one:
+- Procedural KB Article
+- Configuration Setup Documentation
+
+### Step 6 — Choose Prompt Variant
 
 Select one:
 - Auto (based on selected flags)
@@ -125,20 +149,26 @@ Select one:
 - Knowledge Transfer only
 - How-To and Knowledge Transfer
 
-### Step 6 — Build prompt and copy
+Note:
+- Prompt variant applies only to Procedural KB mode.
+- Configuration mode ignores How-To/KT variants and builds a configuration-focused prompt.
+
+### Step 7 — Build prompt and copy
 
 Click **Build Prompt**, then **Copy Prompt**.
 
-### Step 7 — Export audit manifest (optional but recommended)
+### Step 8 — Export audit manifest (optional but recommended)
 
 Click **Download Job Manifest** and save the JSON file in `recordings/` for tracking.
 
-### Step 8 — Run with existing agents
+### Step 9 — Run with existing agents
 
 1. Open Copilot Chat in **Agent** mode.
-2. Select **KB Article Generator**.
+2. Select the agent that matches your workflow mode:
+    - **KB Article Generator** for procedural KB output
+    - **Configuration Setup Generator** for configuration setup output
 3. Paste the generated prompt.
-4. Review detected topics and approve.
+4. Review detected topics/domains and approve.
 5. Allow article/media generation to complete.
 
 ---
@@ -209,6 +239,20 @@ Confirm to proceed, or adjust any step before media is extracted.
 
 The agent extracts screenshots and GIFs for each topic, then writes one or more complete articles. Output appears in `kb-articles/<slug>/` for each detected topic.
 
+### Configuration Setup Manual Run
+
+If the goal is backend setup, feature flags, permissions, or frontend impact from settings:
+
+1. Select **Configuration Setup Generator** in Agent mode.
+2. Run a short prompt:
+
+```text
+Create configuration setup documentation from recordings/How to create Customer Coordinators(cc) and System Administrator(SA) account.mp4
+```
+
+3. Review detected configuration domains and approve.
+4. Output is generated in `configuration-articles/<slug>/`.
+
 ---
 
 ## Prompt Examples
@@ -239,6 +283,20 @@ Create KB articles from recordings/Service Request Training Session.mp4. Detect 
 
 ```text
 Document recordings/Module Manager Deep Dive.mp4. Segment the transcript into distinct how-to topics and generate one KB article per topic with screenshots and GIFs as needed.
+```
+
+### Configuration setup examples
+
+```text
+Create configuration setup documentation from recordings/Module Manager Deep Dive.mp4
+```
+
+```text
+Document backend flags and permissions from recordings/Module Manager Deep Dive.mp4. Segment into distinct configuration domains and generate one configuration article per domain.
+```
+
+```text
+Explain frontend behavior for backend flags from recordings/Module Manager Deep Dive.mp4
 ```
 
 ### Lowest-token prompt style
