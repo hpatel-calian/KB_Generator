@@ -85,6 +85,18 @@
         <label><input id="fManualReview" type="checkbox" checked /> Require topic approval before article creation</label>
         <label><input id="fInternalOnly" type="checkbox" /> Internal-only output</label>
       </div>
+      <div class="flags">
+        <label><input id="fProductionData" type="checkbox" /> Recording is from Production (blur sensitive client data)</label>
+      </div>
+      <p class="hint">
+        When checked, Screenshot Extractor and GIF Creator blur only the values for
+        FirstName, LastName, Name, Address, Client ID, Health Card Number, PhoneNumber,
+        Phone Number, Email, Fax Number, the value entered in the View Client input field,
+        and copay number inside the Client Details dashlet, Client Address section, View Client
+        input, and visible copay fields — field labels and placeholders are never blurred. Uncheck this for Test/QA/Staging recordings to disable
+        all blurring. Browser-only capture (excluding Teams webcam thumbnails, participant
+        panel, toolbar, and invite banners) is always applied regardless of this flag.
+      </p>
       <p id="validationMsg" class="warning"></p>
     </section>
 
