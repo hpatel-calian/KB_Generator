@@ -34,7 +34,8 @@ const dom = {
   fKT: document.getElementById("fKT"),
   fAutoSplit: document.getElementById("fAutoSplit"),
   fManualReview: document.getElementById("fManualReview"),
-  fInternalOnly: document.getElementById("fInternalOnly")
+  fInternalOnly: document.getElementById("fInternalOnly"),
+  fProductionData: document.getElementById("fProductionData")
 };
 
 bind();
@@ -248,7 +249,8 @@ function selectedFlags() {
     knowledgeTransfer: dom.fKT.checked,
     autoSplit: dom.fAutoSplit.checked,
     manualReview: dom.fManualReview.checked,
-    internalOnly: dom.fInternalOnly.checked
+    internalOnly: dom.fInternalOnly.checked,
+    productionData: dom.fProductionData.checked
   };
 }
 
@@ -340,12 +342,19 @@ function buildPrompt() {
   lines.push(`- Auto-split long video into multiple topics/articles: ${yesNo(flags.autoSplit)}`);
   lines.push(`- Manual review required before article creation: ${yesNo(flags.manualReview)}`);
   lines.push(`- Internal-only article: ${yesNo(flags.internalOnly)}`);
+  lines.push(`- Recording source: ${flags.productionData ? "Production (blur sensitive client data)" : "Test/QA/Staging (no blur)"}`);
 
   lines.push("");
   lines.push("Constraints:");
   lines.push("- If one recording contains multiple topics/domains, create separate articles per topic/domain.");
   lines.push("- If multiple recordings are provided, process each pair separately.");
   lines.push("- Use Screenshot Extractor and GIF Creator through existing orchestration.");
+  lines.push("- Capture browser content only — exclude Teams webcam thumbnails, participant panel, toolbar, and invite banners.");
+  if (flags.productionData) {
+    lines.push("- Recording is Production: blur actual values for FirstName, LastName, Name, Address, Client ID, Health Card Number, PhoneNumber, Phone Number, Email, Fax Number, the value entered in the View Client input field, and copay number within the Client Details dashlet, Client Address section, View Client input, and visible copay fields. Never blur field labels or placeholders.");
+  } else {
+    lines.push("- Recording is Test/QA/Staging: do not blur any information in screenshots or GIFs.");
+  }
 
   if (mode === "config") {
     lines.push("- Output must be Azure DevOps Wiki-compatible configuration setup documentation.");

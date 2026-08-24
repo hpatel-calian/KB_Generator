@@ -24,6 +24,8 @@ Your job is to produce one or more complete Azure DevOps Wiki-ready configuratio
 - ALWAYS include exactly two configuration UI screenshots per generated article
 - Use GIF only when a motion state must be demonstrated and a static screenshot is insufficient
 - Keep output in KB-style section layout, but do not force procedural Step X sections unless explicitly requested
+- ALWAYS instruct Screenshot Extractor and GIF Creator to capture the browser content only, excluding Teams meeting chrome (webcam thumbnails, participant panel, toolbar, invite banners) — this applies to every recording
+- ONLY instruct the media subagents to blur sensitive client data when the incoming request explicitly states the recording is from Production (`blurProductionData: true`) — never infer this from content, and never blur Test/QA/Staging recordings
 
 ## Pipeline
 
@@ -38,6 +40,14 @@ Your job is to produce one or more complete Azure DevOps Wiki-ready configuratio
   - Single-domain recording: one output folder `configuration-articles/<article-slug>/`
   - Multi-domain recording: one output folder per domain `configuration-articles/<domain-slug>/`
 7. Create each output folder if it does not exist.
+
+---
+
+### Phase 1.5 — Read Capture & Privacy Flags
+
+1. Read the `Recording source` line from the incoming prompt/manifest (set by the KB Portal's "Recording is from Production" checkbox): either `Production (blur sensitive client data)` or `Test/QA/Staging (no blur)`.
+2. If no such line is present, default to `Test/QA/Staging (no blur)` — never guess a recording is Production.
+3. Carry this decision forward as `blurProductionData: true|false` for every subagent invocation in Phase 3.
 
 ---
 
@@ -103,9 +113,9 @@ For each configuration article candidate:
 1. Identify exactly two timestamps that best show configuration UI state:
   - one for where settings are edited
   - one for where impact/confirmation is visible
-2. Invoke Screenshot Extractor for both timestamps.
+2. Invoke Screenshot Extractor for both timestamps: capture browser content only (exclude Teams webcam thumbnails, participant panel, toolbar, invite banners); `blurProductionData: <true|false>` from Phase 1.5; if true, blur actual values for FirstName, LastName, Name, Address, Client ID, Health Card Number, PhoneNumber, Phone Number, Email, Fax Number, the value entered in the View Client input field, and copay number within the Client Details dashlet, Client Address section, View Client input, and visible copay fields — never labels/placeholders.
 3. Save screenshots to `configuration-articles/<article-slug>/screenshots/`.
-4. Only if a motion state is essential, invoke GIF Creator for that step.
+4. Only if a motion state is essential, invoke GIF Creator for that step with the same browser-only and `blurProductionData` instructions, including the expanded FirstName/LastName, View Client value, and copay scope.
 5. Save optional GIFs to `configuration-articles/<article-slug>/gifs/`.
 
 Wait for subagent confirmation that files exist before writing the article.

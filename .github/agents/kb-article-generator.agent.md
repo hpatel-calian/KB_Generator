@@ -24,6 +24,8 @@ Your job is to produce one or more complete Azure DevOps Wiki-ready KB articles 
 - **GIF by default** for any step involving a lengthy operation (insert, update, delete, import, export, publish, submit, upload, configure, save)
 - **PNG by default** for navigation, login, and single-click steps where the result is immediately visible
 - Never ask the user to classify steps — infer the media type from the action verb in the transcript
+- ALWAYS instruct Screenshot Extractor and GIF Creator to capture the browser content only, excluding Teams meeting chrome (webcam thumbnails, participant panel, toolbar, invite banners) — this applies to every recording
+- ONLY instruct the media subagents to blur sensitive client data when the incoming request explicitly states the recording is from Production (`blurProductionData: true`) — never infer this from content, and never blur Test/QA/Staging recordings
 
 ## Pipeline
 
@@ -38,6 +40,14 @@ Your job is to produce one or more complete Azure DevOps Wiki-ready KB articles 
   - Single-topic recording: one output folder `kb-articles/<article-slug>/`
   - Multi-topic recording: one output folder per topic `kb-articles/<topic-slug>/`
 7. Create each output folder if it does not exist.
+
+---
+
+### Phase 1.5 — Read Capture & Privacy Flags
+
+1. Read the `Recording source` line from the incoming prompt/manifest (set by the KB Portal's "Recording is from Production" checkbox): either `Production (blur sensitive client data)` or `Test/QA/Staging (no blur)`.
+2. If no such line is present, default to `Test/QA/Staging (no blur)` — never guess a recording is Production.
+3. Carry this decision forward as `blurProductionData: true|false` for every subagent invocation in Phase 3.
 
 ---
 
@@ -113,15 +123,15 @@ Additional parsing rules:
 
 ### Phase 3 — Extract Media Assets
 
-For each article candidate, split the step table into two groups based on the `Media` column, then invoke both subagents:
+For each article candidate, split the step table into two groups based on the `Media` column, then invoke both subagents. Always pass the capture/privacy parameters derived in Phase 1.5.
 
 **PNG steps** → invoke **Screenshot Extractor**:
-> Extract screenshots from `recordings/<video>` for: [PNG step table limited to this article topic and its timestamps]
+> Extract screenshots from `recordings/<video>` for: [PNG step table limited to this article topic and its timestamps]. Capture browser content only (exclude Teams webcam thumbnails, participant panel, toolbar, invite banners). `blurProductionData: <true|false>`; if true, apply irreversible blur only to actual values for FirstName, LastName, Name, Address, Client ID, Health Card Number, PhoneNumber, Phone Number, Email, Fax Number, the value entered in the View Client input field, and copay number. Apply this to the Client Details Section, Client Address section, View Client input, and visible copay values. Never blur labels, placeholders, or other content. Never use opaque masks, overlays, or pixelation.
 
 Save to `kb-articles/<article-slug>/screenshots/`
 
 **GIF steps** → invoke **GIF Creator**:
-> Create GIFs from `recordings/<video>` for: [GIF step table limited to this article topic with timestamps and durations]
+> Create GIFs from `recordings/<video>` for: [GIF step table limited to this article topic with timestamps and durations]. Capture browser content only (exclude Teams webcam thumbnails, participant panel, toolbar, invite banners). `blurProductionData: <true|false>`; if true, apply irreversible blur only to actual values for FirstName, LastName, Name, Address, Client ID, Health Card Number, PhoneNumber, Phone Number, Email, Fax Number, the value entered in the View Client input field, and copay number. Apply this to the Client Details Section, Client Address section, View Client input, and visible copay values. Never blur labels, placeholders, or other content. Never use opaque masks, overlays, or pixelation.
 
 Save to `kb-articles/<article-slug>/gifs/`
 
