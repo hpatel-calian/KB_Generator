@@ -55,6 +55,8 @@ id_ed25519.pub
 *.bak
 .DS_Store
 Thumbs.db
+wiki-verify/
+.wiki-audit*/
 
 # Local editor settings
 .vscode/*
