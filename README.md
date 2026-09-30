@@ -14,6 +14,8 @@ This repository now includes a lightweight local portal in `portal/` that orches
 - generate a ready-to-run orchestration prompt,
 - export a job manifest JSON for audit tracking.
 
+When **Publish newly generated articles directly to Azure DevOps Wiki** is selected in the portal, the generator lists the article folders created by that approved job. Review the selected folders in **Preview Generated Article**, then approve the exact folders to publish. Existing folders are never scanned, backfilled, or changed.
+
 ---
 
 ## How It Works
@@ -170,6 +172,28 @@ Click **Download Job Manifest** and save the JSON file in `recordings/` for trac
 3. Paste the generated prompt.
 4. Review detected topics/domains and approve.
 5. Allow article/media generation to complete.
+
+When direct publishing is selected, the agent validates the newly generated folders and asks for publication approval. After approval, it publishes only those folders below the configured Azure DevOps Wiki parent page using the local Git credential manager.
+
+### Direct Wiki Publishing
+
+The publisher is configured for `<your-wiki-repository>.wiki` and writes child pages below `<your-wiki-parent-page>`. It copies selected Markdown pages into the Wiki Git repository, copies screenshots and GIFs into the Wiki `.attachments/` directory, rewrites media links to `/.attachments/...`, commits, and pushes directly to its default branch.
+
+Create a local `.env` file from `.env.example` and provide the Wiki connection details there. The publisher reads `AZURE_DEVOPS_WIKI_REMOTE` and `AZURE_DEVOPS_WIKI_PARENT` from that ignored file; it does not contain organization, project, or Wiki names in source code.
+
+Publish one or more newly generated article folders explicitly:
+
+```powershell
+node scripts/publish-to-azure-devops-wiki.mjs kb-articles/<article-slug>
+```
+
+Validate selected folders without cloning or changing the Wiki:
+
+```powershell
+node scripts/publish-to-azure-devops-wiki.mjs --dry-run kb-articles/<article-slug>
+```
+
+The command never discovers article folders on its own. It publishes only the paths supplied on the command line. Git Credential Manager may prompt for Azure DevOps authentication on the first run.
 
 ---
 
