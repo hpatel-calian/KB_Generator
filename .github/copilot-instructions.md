@@ -12,7 +12,7 @@ Use Markdown syntax only.
 
 Always include:
 
-- Title
+- Purpose
 - Purpose
 - Audience
 - Prerequisites
@@ -23,6 +23,8 @@ Always include:
 - Troubleshooting
 - FAQ
 - Related Articles
+
+For Azure DevOps Wiki output, do not add a top-level `#` heading or a metadata block containing Article ID, Last Updated, Author, or Status. The destination Wiki page supplies the title and publication metadata.
 
 ## Procedure Guidelines
 

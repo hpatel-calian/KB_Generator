@@ -29,6 +29,20 @@ Your job is to produce one or more complete Azure DevOps Wiki-ready KB articles 
 
 ## Pipeline
 
+### Direct Wiki Publishing
+
+When the incoming prompt contains `Direct Wiki publishing: Yes`, preserve the existing topic-approval and article-generation workflow. Do not publish immediately after article generation. After all Markdown and media files have been validated, show the user only the exact article folders created in the current run and direct them to review selected outputs in the Portal Preview Generated Article section.
+
+After the user reviews the preview, ask which exact article folders they approve for publication. Only after the user explicitly approves one or more listed folders in a later reply, publish only those folders. Run:
+
+```text
+node scripts/publish-to-azure-devops-wiki.mjs kb-articles/<slug-1> kb-articles/<slug-2>
+```
+
+Never scan `kb-articles/` for folders to publish. Never publish, backfill, or modify existing article folders that were not created in the current run. The command uses Git Credential Manager to authenticate and publishes below the configured Azure DevOps Wiki `Index Page` hierarchy. Report the result and the exact generated folders that were published.
+
+If the incoming prompt does not contain `Direct Wiki publishing: Yes`, do not publish.
+
 ### Phase 1 — Discover Files
 
 1. Search the `recordings/` folder for the `.mp4` (or `.webm`, `.mov`) video the user referenced.
@@ -145,13 +159,7 @@ For each article candidate, create `kb-articles/<article-slug>/KB-<article-slug>
 
 ---
 
-**Metadata block**
-```
-> **Article ID:** KB-<TOPIC>-<NNN>
-> **Last Updated:** <YYYY-MM-DD>
-> **Author:** <from transcript>
-> **Status:** Published
-```
+Do not add a top-level `#` heading or a metadata block. Azure DevOps Wiki displays the page title from the destination page.
 
 **Purpose** — one paragraph: what the workflow or topic does, why the user performs it, and which environments are involved
 
@@ -208,7 +216,7 @@ When multiple articles were created from the same recording, add cross-links in 
   Recording   : recordings/<video>
   Articles    : <N>
   Total Steps : <N>
-  Wiki-ready  : Yes — upload the generated article folders to Azure DevOps Wiki
+  Wiki-ready  : Yes
 
   - kb-articles/<slug-1>/KB-<slug-1>.md
     Screenshots: <N>
@@ -222,6 +230,8 @@ When multiple articles were created from the same recording, add cross-links in 
 ```
 
 Flag any steps where the screenshot may show a transition frame so the user can re-extract if needed.
+
+When Direct Wiki publishing was requested, list only the article folders created for this run, direct the user to preview them in the portal, and ask which exact folders they approve for publication. After approval, report whether publishing succeeded and list only the folders published.
 
 ---
 
