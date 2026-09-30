@@ -30,13 +30,25 @@ const dom = {
   unpairedList: document.getElementById("unpairedList"),
   promptOutput: document.getElementById("promptOutput"),
   validationMsg: document.getElementById("validationMsg"),
+  previewMarkdownInput: document.getElementById("previewMarkdownInput"),
+  previewFolderInput: document.getElementById("previewFolderInput"),
+  previewMarkdownBtn: document.getElementById("previewMarkdownBtn"),
+  previewArticleBtn: document.getElementById("previewArticleBtn"),
+  previewStatus: document.getElementById("previewStatus"),
+  articlePreviewDialog: document.getElementById("articlePreviewDialog"),
+  previewTitle: document.getElementById("previewTitle"),
+  previewContent: document.getElementById("previewContent"),
+  closePreviewBtn: document.getElementById("closePreviewBtn"),
   fHowTo: document.getElementById("fHowTo"),
   fKT: document.getElementById("fKT"),
   fAutoSplit: document.getElementById("fAutoSplit"),
   fManualReview: document.getElementById("fManualReview"),
   fInternalOnly: document.getElementById("fInternalOnly"),
-  fProductionData: document.getElementById("fProductionData")
+  fProductionData: document.getElementById("fProductionData"),
+  fPublishWiki: document.getElementById("fPublishWiki")
 };
+
+let previewObjectUrls = [];
 
 bind();
 renderAll();
@@ -68,6 +80,11 @@ function bind() {
   dom.buildPromptBtn.addEventListener("click", buildPrompt);
   dom.copyPromptBtn.addEventListener("click", copyPrompt);
   dom.downloadManifestBtn.addEventListener("click", downloadManifest);
+  dom.previewMarkdownBtn.addEventListener("click", () => dom.previewMarkdownInput.click());
+  dom.previewMarkdownInput.addEventListener("change", previewMarkdownFile);
+  dom.previewArticleBtn.addEventListener("click", () => dom.previewFolderInput.click());
+  dom.previewFolderInput.addEventListener("change", previewArticleFolder);
+  dom.closePreviewBtn.addEventListener("click", closeArticlePreview);
 }
 
 function workflowMode() {
@@ -250,7 +267,8 @@ function selectedFlags() {
     autoSplit: dom.fAutoSplit.checked,
     manualReview: dom.fManualReview.checked,
     internalOnly: dom.fInternalOnly.checked,
-    productionData: dom.fProductionData.checked
+    productionData: dom.fProductionData.checked,
+    publishWiki: dom.fPublishWiki.checked
   };
 }
 
@@ -343,6 +361,7 @@ function buildPrompt() {
   lines.push(`- Manual review required before article creation: ${yesNo(flags.manualReview)}`);
   lines.push(`- Internal-only article: ${yesNo(flags.internalOnly)}`);
   lines.push(`- Recording source: ${flags.productionData ? "Production (blur sensitive client data)" : "Test/QA/Staging (no blur)"}`);
+  lines.push(`- Direct Wiki publishing: ${yesNo(flags.publishWiki)}`);
 
   lines.push("");
   lines.push("Constraints:");
@@ -354,6 +373,10 @@ function buildPrompt() {
     lines.push("- Recording is Production: blur actual values for FirstName, LastName, Name, Address, Client ID, Health Card Number, PhoneNumber, Phone Number, Email, Fax Number, the value entered in the View Client input field, and copay number within the Client Details dashlet, Client Address section, View Client input, and visible copay fields. Never blur field labels or placeholders.");
   } else {
     lines.push("- Recording is Test/QA/Staging: do not blur any information in screenshots or GIFs.");
+  }
+  if (flags.publishWiki) {
+    lines.push("- After topic approval and article generation, do not publish yet. List only the newly created article folders and direct me to review each selected output in the Portal Preview Generated Article section.");
+    lines.push("- After I review the preview, ask which exact article folders I approve for Azure DevOps Wiki publication. Publish only the folders I explicitly approve in a later reply using node scripts/publish-to-azure-devops-wiki.mjs. Do not publish, backfill, or modify pre-existing article folders.");
   }
 
   if (mode === "config") {
@@ -441,6 +464,141 @@ async function copyPrompt() {
   } catch {
     alert("Copy failed. Please copy manually.");
   }
+}
+
+async function previewArticleFolder(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = "";
+  const markdownFiles = files.filter((file) => /\.md$/i.test(file.name));
+  if (markdownFiles.length !== 1) {
+    dom.previewStatus.textContent = "Select one article folder containing exactly one Markdown file.";
+    return;
+  }
+
+  resetArticlePreview();
+  const articleFile = markdownFiles[0];
+  const mediaUrls = new Map();
+  for (const file of files) {
+    if (!/\.(png|jpe?g|gif|webp)$/i.test(file.name)) continue;
+    const relativePath = normalizeMediaPath(file.webkitRelativePath || file.name);
+    const url = URL.createObjectURL(file);
+    previewObjectUrls.push(url);
+    mediaUrls.set(relativePath, url);
+    mediaUrls.set(file.name, url);
+  }
+
+  const articleFolder = articleFile.webkitRelativePath.split("/")[0] || "article folder";
+  const markdown = await articleFile.text();
+  openArticlePreview(markdown, articleFile.name, mediaUrls, `Previewing ${articleFolder} with ${mediaUrls.size} local media file(s).`);
+}
+
+async function previewMarkdownFile(event) {
+  const [file] = Array.from(event.target.files || []);
+  event.target.value = "";
+  if (!file) return;
+
+  resetArticlePreview();
+  const markdown = await file.text();
+  openArticlePreview(
+    markdown,
+    file.name,
+    new Map(),
+    "Previewing Markdown text only. Select the article folder to include screenshots and GIFs."
+  );
+}
+
+function openArticlePreview(markdown, fileName, mediaUrls, status) {
+  dom.previewTitle.textContent = fileName.replace(/\.md$/i, "");
+  renderArticlePreview(markdown, mediaUrls);
+  dom.previewStatus.textContent = status;
+  dom.articlePreviewDialog.showModal();
+}
+
+function renderArticlePreview(markdown, mediaUrls) {
+  dom.previewContent.replaceChildren();
+  let inCodeBlock = false;
+  let codeLines = [];
+
+  for (const line of markdown.replace(/\r/g, "").split("\n")) {
+    if (line.startsWith("```")) {
+      if (inCodeBlock) appendPreviewCode(codeLines.join("\n"));
+      inCodeBlock = !inCodeBlock;
+      codeLines = [];
+      continue;
+    }
+    if (inCodeBlock) {
+      codeLines.push(line);
+      continue;
+    }
+
+    const imageMatch = line.match(/^!\[([^\]]*)\]\(\.\/([^\s)]+)\)$/);
+    if (imageMatch) {
+      appendPreviewMedia(imageMatch[1], imageMatch[2], mediaUrls);
+      continue;
+    }
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      const heading = document.createElement(`h${headingMatch[1].length}`);
+      heading.textContent = headingMatch[2];
+      dom.previewContent.appendChild(heading);
+      continue;
+    }
+    if (/^---+$/.test(line)) {
+      dom.previewContent.appendChild(document.createElement("hr"));
+      continue;
+    }
+    if (!line.trim()) continue;
+
+    const paragraph = document.createElement(line.startsWith("- ") || /^\d+\.\s/.test(line) ? "p" : "p");
+    paragraph.textContent = line.replace(/^(-|\d+\.)\s+/, "");
+    dom.previewContent.appendChild(paragraph);
+  }
+
+  if (inCodeBlock) appendPreviewCode(codeLines.join("\n"));
+}
+
+function appendPreviewCode(content) {
+  const code = document.createElement("pre");
+  code.textContent = content;
+  dom.previewContent.appendChild(code);
+}
+
+function appendPreviewMedia(description, path, mediaUrls) {
+  const figure = document.createElement("figure");
+  const normalizedPath = normalizeMediaPath(path);
+  const mediaUrl = mediaUrls.get(normalizedPath) || mediaUrls.get(normalizedPath.split("/").pop());
+  if (mediaUrl) {
+    const image = document.createElement("img");
+    image.src = mediaUrl;
+    image.alt = description;
+    figure.appendChild(image);
+  } else {
+    const missing = document.createElement("p");
+    missing.className = "preview-missing-media";
+    missing.textContent = `Media unavailable: ${path}. Select the article folder that contains the screenshots and gifs folders.`;
+    figure.appendChild(missing);
+  }
+  const caption = document.createElement("figcaption");
+  caption.textContent = description || path;
+  figure.appendChild(caption);
+  dom.previewContent.appendChild(figure);
+}
+
+function normalizeMediaPath(path) {
+  const segments = decodeURIComponent(path).replace(/\\/g, "/").replace(/^\.\//, "").split("/");
+  const mediaRoot = segments.findIndex((segment) => /^(screenshots|gifs)$/i.test(segment));
+  return (mediaRoot >= 0 ? segments.slice(mediaRoot) : segments).join("/");
+}
+
+function closeArticlePreview() {
+  resetArticlePreview();
+}
+
+function resetArticlePreview() {
+  if (dom.articlePreviewDialog.open) dom.articlePreviewDialog.close();
+  previewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  previewObjectUrls = [];
+  dom.previewContent.replaceChildren();
 }
 
 function renderPairs() {
