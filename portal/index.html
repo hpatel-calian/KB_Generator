@@ -125,13 +125,17 @@
 
     <section class="card">
       <h2>4) Preview Generated Article</h2>
-      <p class="hint">Select a Markdown article for a text preview, or select its folder to preview the article with local screenshots and GIFs before publication.</p>
+      <p class="hint">Select an article Markdown file from kb-articles/ or configuration-articles/ and its screenshots and GIFs load automatically. You can also select an article folder, or a whole kb-articles/ folder, and choose the article from the list.</p>
       <div class="actions">
         <input id="previewMarkdownInput" type="file" accept=".md,text/markdown" hidden />
         <input id="previewFolderInput" type="file" webkitdirectory directory multiple hidden />
         <button id="previewMarkdownBtn" type="button">Select Markdown file</button>
         <button id="previewArticleBtn" type="button" class="ghost">Select article folder with media</button>
       </div>
+      <label id="previewArticleSelectLabel" hidden>
+        Article
+        <select id="previewArticleSelect"></select>
+      </label>
       <p id="previewStatus" class="hint" aria-live="polite">No article selected.</p>
     </section>
 
