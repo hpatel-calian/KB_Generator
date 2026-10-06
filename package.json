@@ -1,0 +1,9 @@
+{
+  "name": "kb-generator",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "publish:wiki": "node scripts/publish-to-azure-devops-wiki.mjs",
+    "publish:wiki:dry-run": "node scripts/publish-to-azure-devops-wiki.mjs --dry-run"
+  }
+}

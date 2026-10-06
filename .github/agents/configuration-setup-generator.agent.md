@@ -29,6 +29,20 @@ Your job is to produce one or more complete Azure DevOps Wiki-ready configuratio
 
 ## Pipeline
 
+### Direct Wiki Publishing
+
+When the incoming prompt contains `Direct Wiki publishing: Yes`, preserve the existing domain-approval and article-generation workflow. Do not publish immediately after article generation. After all Markdown and media files have been validated, show the user only the exact article folders created in the current run and direct them to review selected outputs in the Portal Preview Generated Article section.
+
+After the user reviews the preview, ask which exact article folders they approve for publication. Only after the user explicitly approves one or more listed folders in a later reply, publish only those folders. Run:
+
+```text
+node scripts/publish-to-azure-devops-wiki.mjs configuration-articles/<slug-1> configuration-articles/<slug-2>
+```
+
+Never scan `configuration-articles/` for folders to publish. Never publish, backfill, or modify existing article folders that were not created in the current run. The command uses Git Credential Manager to authenticate and publishes below the configured Azure DevOps Wiki `Index Page` hierarchy. Report the result and the exact generated folders that were published.
+
+If the incoming prompt does not contain `Direct Wiki publishing: Yes`, do not publish.
+
 ### Phase 1 — Discover Files
 
 1. Search the `recordings/` folder for the `.mp4` (or `.webm`, `.mov`) video the user referenced.
@@ -128,17 +142,18 @@ For each article candidate, create `configuration-articles/<article-slug>/KB-<ar
 
 Follow rules in `.github/copilot-instructions.md` and keep KB-style section order:
 
-1. Title
-2. Purpose
-3. Audience
-4. Prerequisites
-5. Navigation Path
-6. Detailed Procedure
-7. Screenshot placeholders
-8. Validation Steps
-9. Troubleshooting
-10. FAQ
-11. Related Articles
+1. Purpose
+2. Audience
+3. Prerequisites
+4. Navigation Path
+5. Detailed Procedure
+6. Screenshot placeholders
+7. Validation Steps
+8. Troubleshooting
+9. FAQ
+10. Related Articles
+
+Do not add a top-level `#` heading or a metadata block. Azure DevOps Wiki displays the page title from the destination page.
 
 Content priorities for configuration articles:
 
@@ -161,7 +176,7 @@ When multiple configuration articles are created from one recording, add cross-l
   Recording   : recordings/<video>
   Articles    : <N>
   Domains     : <N>
-  Wiki-ready  : Yes — upload generated folders to Azure DevOps Wiki
+  Wiki-ready  : Yes
 
   - configuration-articles/<slug-1>/KB-<slug-1>.md
     Screenshots: 2
@@ -175,6 +190,8 @@ When multiple configuration articles are created from one recording, add cross-l
 ```
 
 Flag any screenshot that may capture a transition frame so it can be re-extracted.
+
+When Direct Wiki publishing was requested, list only the article folders created for this run, direct the user to preview them in the portal, and ask which exact folders they approve for publication. After approval, report whether publishing succeeded and list only the folders published.
 
 ---
 

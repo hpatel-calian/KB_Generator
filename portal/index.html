@@ -87,6 +87,7 @@
       </div>
       <div class="flags">
         <label><input id="fProductionData" type="checkbox" /> Recording is from Production (blur sensitive client data)</label>
+        <label><input id="fPublishWiki" type="checkbox" checked /> Publish newly generated articles directly to Azure DevOps Wiki</label>
       </div>
       <p class="hint">
         When checked, Screenshot Extractor and GIF Creator blur only the values for
@@ -97,6 +98,7 @@
         all blurring. Browser-only capture (excluding Teams webcam thumbnails, participant
         panel, toolbar, and invite banners) is always applied regardless of this flag.
       </p>
+      <p class="hint">After generation, the agent lists the new article folders and asks for your approval before publishing them to the <strong>Index Page</strong> hierarchy. Existing local articles are never scanned or published.</p>
       <p id="validationMsg" class="warning"></p>
     </section>
 
@@ -122,7 +124,23 @@
     </section>
 
     <section class="card">
-      <h2>4) Run Instructions</h2>
+      <h2>4) Preview Generated Article</h2>
+      <p class="hint">Select an article Markdown file from kb-articles/ or configuration-articles/ and its screenshots and GIFs load automatically. You can also select an article folder, or a whole kb-articles/ folder, and choose the article from the list.</p>
+      <div class="actions">
+        <input id="previewMarkdownInput" type="file" accept=".md,text/markdown" hidden />
+        <input id="previewFolderInput" type="file" webkitdirectory directory multiple hidden />
+        <button id="previewMarkdownBtn" type="button">Select Markdown file</button>
+        <button id="previewArticleBtn" type="button" class="ghost">Select article folder with media</button>
+      </div>
+      <label id="previewArticleSelectLabel" hidden>
+        Article
+        <select id="previewArticleSelect"></select>
+      </label>
+      <p id="previewStatus" class="hint" aria-live="polite">No article selected.</p>
+    </section>
+
+    <section class="card">
+      <h2>5) Run Instructions</h2>
       <ol>
         <li>Click <strong>Select recordings/ Folder</strong> and grant access to the <code>recordings/</code> folder. Files will be saved automatically when you upload them.</li>
         <li>Open Copilot Chat in Agent mode.</li>
@@ -132,6 +150,17 @@
       <p id="saveStatus" class="hint"></p>
     </section>
   </main>
+
+  <dialog id="articlePreviewDialog" class="preview-dialog" aria-labelledby="previewTitle">
+    <header class="preview-header">
+      <div>
+        <p class="preview-kicker">Local review</p>
+        <h2 id="previewTitle">Article preview</h2>
+      </div>
+      <button id="closePreviewBtn" class="ghost" type="button">Close preview</button>
+    </header>
+    <article id="previewContent" class="article-preview" aria-live="polite"></article>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

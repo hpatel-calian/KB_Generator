@@ -30,13 +30,28 @@ const dom = {
   unpairedList: document.getElementById("unpairedList"),
   promptOutput: document.getElementById("promptOutput"),
   validationMsg: document.getElementById("validationMsg"),
+  previewMarkdownInput: document.getElementById("previewMarkdownInput"),
+  previewFolderInput: document.getElementById("previewFolderInput"),
+  previewMarkdownBtn: document.getElementById("previewMarkdownBtn"),
+  previewArticleBtn: document.getElementById("previewArticleBtn"),
+  previewStatus: document.getElementById("previewStatus"),
+  previewArticleSelect: document.getElementById("previewArticleSelect"),
+  previewArticleSelectLabel: document.getElementById("previewArticleSelectLabel"),
+  articlePreviewDialog: document.getElementById("articlePreviewDialog"),
+  previewTitle: document.getElementById("previewTitle"),
+  previewContent: document.getElementById("previewContent"),
+  closePreviewBtn: document.getElementById("closePreviewBtn"),
   fHowTo: document.getElementById("fHowTo"),
   fKT: document.getElementById("fKT"),
   fAutoSplit: document.getElementById("fAutoSplit"),
   fManualReview: document.getElementById("fManualReview"),
   fInternalOnly: document.getElementById("fInternalOnly"),
-  fProductionData: document.getElementById("fProductionData")
+  fProductionData: document.getElementById("fProductionData"),
+  fPublishWiki: document.getElementById("fPublishWiki")
 };
+
+let previewObjectUrls = [];
+let previewArticles = [];
 
 bind();
 renderAll();
@@ -68,6 +83,12 @@ function bind() {
   dom.buildPromptBtn.addEventListener("click", buildPrompt);
   dom.copyPromptBtn.addEventListener("click", copyPrompt);
   dom.downloadManifestBtn.addEventListener("click", downloadManifest);
+  dom.previewMarkdownBtn.addEventListener("click", () => dom.previewMarkdownInput.click());
+  dom.previewMarkdownInput.addEventListener("change", previewMarkdownFile);
+  dom.previewArticleBtn.addEventListener("click", () => dom.previewFolderInput.click());
+  dom.previewFolderInput.addEventListener("change", previewArticleFolder);
+  dom.previewArticleSelect.addEventListener("change", previewSelectedArticle);
+  dom.closePreviewBtn.addEventListener("click", closeArticlePreview);
 }
 
 function workflowMode() {
@@ -250,7 +271,8 @@ function selectedFlags() {
     autoSplit: dom.fAutoSplit.checked,
     manualReview: dom.fManualReview.checked,
     internalOnly: dom.fInternalOnly.checked,
-    productionData: dom.fProductionData.checked
+    productionData: dom.fProductionData.checked,
+    publishWiki: dom.fPublishWiki.checked
   };
 }
 
@@ -343,6 +365,7 @@ function buildPrompt() {
   lines.push(`- Manual review required before article creation: ${yesNo(flags.manualReview)}`);
   lines.push(`- Internal-only article: ${yesNo(flags.internalOnly)}`);
   lines.push(`- Recording source: ${flags.productionData ? "Production (blur sensitive client data)" : "Test/QA/Staging (no blur)"}`);
+  lines.push(`- Direct Wiki publishing: ${yesNo(flags.publishWiki)}`);
 
   lines.push("");
   lines.push("Constraints:");
@@ -354,6 +377,10 @@ function buildPrompt() {
     lines.push("- Recording is Production: blur actual values for FirstName, LastName, Name, Address, Client ID, Health Card Number, PhoneNumber, Phone Number, Email, Fax Number, the value entered in the View Client input field, and copay number within the Client Details dashlet, Client Address section, View Client input, and visible copay fields. Never blur field labels or placeholders.");
   } else {
     lines.push("- Recording is Test/QA/Staging: do not blur any information in screenshots or GIFs.");
+  }
+  if (flags.publishWiki) {
+    lines.push("- After topic approval and article generation, do not publish yet. List only the newly created article folders and direct me to review each selected output in the Portal Preview Generated Article section.");
+    lines.push("- After I review the preview, ask which exact article folders I approve for Azure DevOps Wiki publication. Publish only the folders I explicitly approve in a later reply using node scripts/publish-to-azure-devops-wiki.mjs. Do not publish, backfill, or modify pre-existing article folders.");
   }
 
   if (mode === "config") {
@@ -441,6 +468,277 @@ async function copyPrompt() {
   } catch {
     alert("Copy failed. Please copy manually.");
   }
+}
+
+async function previewArticleFolder(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = "";
+  const markdownFiles = files.filter((file) => /\.md$/i.test(file.name));
+  if (!markdownFiles.length) {
+    dom.previewStatus.textContent = "No Markdown article found in the selected folder.";
+    return;
+  }
+
+  // Supports a single article folder or a root such as kb-articles/ containing many articles.
+  previewArticles = markdownFiles
+    .map((file) => {
+      const path = file.webkitRelativePath || file.name;
+      const folder = path.slice(0, path.lastIndexOf("/") + 1);
+      return { file, folder, media: files.filter((f) => isMediaFile(f) && (f.webkitRelativePath || "").startsWith(folder)) };
+    })
+    .sort((a, b) => a.folder.localeCompare(b.folder));
+
+  dom.previewArticleSelect.replaceChildren();
+  if (previewArticles.length === 1) {
+    dom.previewArticleSelectLabel.hidden = true;
+    await openFolderArticle(previewArticles[0]);
+    return;
+  }
+
+  const placeholder = new Option(`Select an article (${previewArticles.length} found)`, "");
+  dom.previewArticleSelect.appendChild(placeholder);
+  previewArticles.forEach((article, index) => {
+    const label = article.folder.replace(/\/$/, "").split("/").pop() || article.file.name;
+    dom.previewArticleSelect.appendChild(new Option(label, String(index)));
+  });
+  dom.previewArticleSelectLabel.hidden = false;
+  dom.previewStatus.textContent = "Choose an article from the list to preview it with its screenshots and GIFs.";
+}
+
+async function previewSelectedArticle() {
+  const article = previewArticles[Number(dom.previewArticleSelect.value)];
+  if (dom.previewArticleSelect.value === "" || !article) return;
+  await openFolderArticle(article);
+}
+
+async function openFolderArticle(article) {
+  resetArticlePreview();
+  const mediaUrls = new Map();
+  for (const file of article.media) {
+    const url = URL.createObjectURL(file);
+    previewObjectUrls.push(url);
+    mediaUrls.set(normalizeMediaPath(file.webkitRelativePath || file.name), url);
+    mediaUrls.set(file.name, url);
+  }
+  const folderName = article.folder.replace(/\/$/, "").split("/").pop() || "article folder";
+  const markdown = await article.file.text();
+  openArticlePreview(markdown, article.file.name, { urls: mediaUrls, bases: [] }, `Previewing ${folderName} with ${article.media.length} local media file(s).`);
+}
+
+async function previewMarkdownFile(event) {
+  const [file] = Array.from(event.target.files || []);
+  event.target.value = "";
+  if (!file) return;
+
+  resetArticlePreview();
+  const markdown = await file.text();
+  openArticlePreview(
+    markdown,
+    file.name,
+    { urls: new Map(), bases: repositoryArticleBases(file.name) },
+    `Previewing ${file.name}. Media is loaded from the matching kb-articles/ or configuration-articles/ folder.`
+  );
+}
+
+// The file picker only exposes the .md file, so media is resolved from the repo folder matching the article slug.
+function repositoryArticleBases(fileName) {
+  const base = fileName.replace(/\.md$/i, "");
+  const slugs = [...new Set([base.replace(/^(KB|KT)-/i, ""), base])].map(encodeURIComponent);
+  const roots = ["kb-articles", "configuration-articles"];
+  return slugs.flatMap((slug) => roots.map((root) => `../${root}/${slug}/`));
+}
+
+function isMediaFile(file) {
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
+}
+
+function openArticlePreview(markdown, fileName, media, status) {
+  dom.previewTitle.textContent = fileName.replace(/\.md$/i, "");
+  renderArticlePreview(markdown, media);
+  dom.previewStatus.textContent = status;
+  if (!dom.articlePreviewDialog.open) dom.articlePreviewDialog.showModal();
+}
+
+function renderArticlePreview(markdown, media) {
+  dom.previewContent.replaceChildren();
+  const lines = markdown.replace(/\r/g, "").split("\n");
+  let list = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const listMatch = line.match(/^\s*(-|\*|\d+\.)\s+(.*)$/);
+    if (!listMatch) list = null;
+
+    if (line.startsWith("```")) {
+      const codeLines = [];
+      while (++i < lines.length && !lines[i].startsWith("```")) codeLines.push(lines[i]);
+      appendPreviewCode(codeLines.join("\n"));
+      continue;
+    }
+
+    const imageMatch = line.trim().match(/^!\[([^\]]*)\]\(([^\s)]+)\)$/);
+    if (imageMatch) {
+      appendPreviewMedia(imageMatch[1], imageMatch[2], media);
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const heading = document.createElement(`h${headingMatch[1].length}`);
+      appendInline(heading, headingMatch[2]);
+      dom.previewContent.appendChild(heading);
+      continue;
+    }
+
+    if (/^\s*\|/.test(line)) {
+      const tableLines = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i])) tableLines.push(lines[i++]);
+      i--;
+      appendPreviewTable(tableLines);
+      continue;
+    }
+
+    if (/^---+$/.test(line.trim())) {
+      dom.previewContent.appendChild(document.createElement("hr"));
+      continue;
+    }
+
+    if (line.startsWith(">")) {
+      const quote = document.createElement("blockquote");
+      appendInline(quote, line.replace(/^>\s?/, ""));
+      dom.previewContent.appendChild(quote);
+      continue;
+    }
+
+    if (listMatch) {
+      const ordered = /\d/.test(listMatch[1]);
+      const tag = ordered ? "OL" : "UL";
+      if (!list || list.tagName !== tag) {
+        list = document.createElement(tag.toLowerCase());
+        dom.previewContent.appendChild(list);
+      }
+      const item = document.createElement("li");
+      appendInline(item, listMatch[2].replace(/^\[( |x)\]\s*/i, (m, c) => (c.trim() ? "\u2611 " : "\u2610 ")));
+      list.appendChild(item);
+      continue;
+    }
+
+    if (!line.trim()) continue;
+
+    const paragraph = document.createElement("p");
+    appendInline(paragraph, line);
+    dom.previewContent.appendChild(paragraph);
+  }
+}
+
+function appendInline(parent, text) {
+  const pattern = /\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|\*([^*]+)\*/g;
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    if (match.index > last) parent.appendChild(document.createTextNode(text.slice(last, match.index)));
+    let node;
+    if (match[1] !== undefined) {
+      node = document.createElement("strong");
+      appendInline(node, match[1]);
+    } else if (match[2] !== undefined) {
+      node = document.createElement("code");
+      node.textContent = match[2];
+    } else if (match[3] !== undefined) {
+      if (/^(https?:\/\/|\.{0,2}\/|#)/i.test(match[4])) {
+        node = document.createElement("a");
+        node.href = match[4];
+        node.target = "_blank";
+        node.rel = "noopener noreferrer";
+        node.textContent = match[3];
+      } else {
+        node = document.createTextNode(match[3]);
+      }
+    } else {
+      node = document.createElement("em");
+      node.textContent = match[5];
+    }
+    parent.appendChild(node);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+}
+
+function appendPreviewTable(tableLines) {
+  const splitRow = (row) => row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+  const table = document.createElement("table");
+  const hasHeader = tableLines.length > 1 && /^\s*\|?\s*:?-+/.test(tableLines[1]);
+  tableLines.forEach((row, index) => {
+    if (hasHeader && index === 1) return;
+    const tr = document.createElement("tr");
+    splitRow(row).forEach((cell) => {
+      const td = document.createElement(hasHeader && index === 0 ? "th" : "td");
+      appendInline(td, cell);
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+  dom.previewContent.appendChild(table);
+}
+
+function appendPreviewCode(content) {
+  const code = document.createElement("pre");
+  code.textContent = content;
+  dom.previewContent.appendChild(code);
+}
+
+function appendPreviewMedia(description, path, media) {
+  const figure = document.createElement("figure");
+  const normalizedPath = normalizeMediaPath(path);
+  const mediaUrl = media.urls.get(normalizedPath) || media.urls.get(normalizedPath.split("/").pop());
+  const relativePath = path.replace(/^\.\//, "");
+  const candidates = mediaUrl
+    ? [mediaUrl]
+    : /^https:\/\//i.test(path)
+      ? [path]
+      : media.bases.map((base) => base + relativePath);
+
+  const showMissing = () => {
+    const missing = document.createElement("p");
+    missing.className = "preview-missing-media";
+    missing.textContent = `Media unavailable: ${path}. Use "Select article folder with media" if the article is outside this repository.`;
+    figure.replaceChildren(missing, caption);
+  };
+
+  const caption = document.createElement("figcaption");
+  caption.textContent = description || path;
+
+  if (candidates.length) {
+    const image = document.createElement("img");
+    image.alt = description;
+    let attempt = 0;
+    image.onerror = () => {
+      attempt += 1;
+      if (attempt < candidates.length) image.src = candidates[attempt];
+      else showMissing();
+    };
+    image.src = candidates[0];
+    figure.append(image, caption);
+  } else {
+    showMissing();
+  }
+  dom.previewContent.appendChild(figure);
+}
+
+function normalizeMediaPath(path) {
+  const segments = decodeURIComponent(path).replace(/\\/g, "/").replace(/^\.\//, "").split("/");
+  const mediaRoot = segments.findIndex((segment) => /^(screenshots|gifs)$/i.test(segment));
+  return (mediaRoot >= 0 ? segments.slice(mediaRoot) : segments).join("/");
+}
+
+function closeArticlePreview() {
+  resetArticlePreview();
+}
+
+function resetArticlePreview() {
+  if (dom.articlePreviewDialog.open) dom.articlePreviewDialog.close();
+  previewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  previewObjectUrls = [];
+  dom.previewContent.replaceChildren();
 }
 
 function renderPairs() {
