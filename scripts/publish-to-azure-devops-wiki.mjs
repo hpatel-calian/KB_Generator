@@ -11,6 +11,8 @@ if (existsSync(environmentFile)) process.loadEnvFile(environmentFile);
 
 const DEFAULT_REMOTE = process.env.AZURE_DEVOPS_WIKI_REMOTE;
 const DEFAULT_PARENT = process.env.AZURE_DEVOPS_WIKI_PARENT;
+const titleOverrides = new Map();
+const linkOverrides = new Map();
 
 function usage() {
   console.log(`Usage: node scripts/publish-to-azure-devops-wiki.mjs [options] <article-folder> [...article-folder]
@@ -22,6 +24,8 @@ Options:
   --remote <url>            Azure DevOps Wiki Git remote. Defaults to AZURE_DEVOPS_WIKI_REMOTE.
   --parent <directory>      Wiki parent directory. Defaults to AZURE_DEVOPS_WIKI_PARENT.
   --message <text>          Git commit message.
+  --title <folder>=<title>  Wiki page title for an article folder name. Repeatable.
+  --link <folder>=<page>    Existing Wiki page name that a related-article folder link should point to. Repeatable.
   --help                    Show this help message.
 
 Example:
@@ -107,7 +111,7 @@ async function validateArticleSource(source) {
 }
 
 function wikiPageName(markdown, fallbackSlug) {
-  const title = markdown.match(/^#\s+(.+)$/m)?.[1].trim();
+  const title = titleOverrides.get(fallbackSlug) ?? markdown.match(/^#\s+(.+)$/m)?.[1].trim();
   if (!title) return fallbackSlug;
   return title.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, "-");
 }
@@ -128,11 +132,14 @@ async function relatedArticleLinkMap(article, repo) {
   for (const match of links) {
     const localFolder = match[1];
     if (mappings.has(localFolder)) continue;
-    const relatedFolder = resolve(article.source, "..", localFolder);
-    const relatedFile = await findArticleFile(relatedFolder).catch(() => null);
-    if (!relatedFile) continue;
-    const relatedMarkdown = await readFile(relatedFile, "utf8");
-    const wikiPath = await findWikiPagePath(repo, wikiPageName(relatedMarkdown, localFolder));
+    let pageName = linkOverrides.get(localFolder);
+    if (!pageName) {
+      const relatedFolder = resolve(article.source, "..", localFolder);
+      const relatedFile = await findArticleFile(relatedFolder).catch(() => null);
+      if (!relatedFile) continue;
+      pageName = wikiPageName(await readFile(relatedFile, "utf8"), localFolder);
+    }
+    const wikiPath = await findWikiPagePath(repo, pageName);
     if (wikiPath) mappings.set(localFolder, wikiPath);
   }
   return mappings;
@@ -188,6 +195,8 @@ async function syncArticle(article, repo, parent) {
   directoryRoot = repo;
   const relatedLinks = await relatedArticleLinkMap(article, repo);
   const publishedMarkdown = rewriteRelatedArticleLinks(rewriteMediaPaths(removeWikiChrome(article.markdown), article.slug), relatedLinks);
+  const unresolved = [...publishedMarkdown.matchAll(/\]\((\.\.\/[^)\s]+)\)/g)].map((match) => match[1]);
+  if (unresolved.length) console.warn(`Warning: ${article.slug} still has unresolved links: ${unresolved.join(", ")}`);
   await writeFile(destination.markdown, publishedMarkdown, "utf8");
   return { markdown: relative(repo, destination.markdown), attachments };
 }
